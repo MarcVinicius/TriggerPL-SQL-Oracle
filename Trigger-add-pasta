@@ -1,0 +1,142 @@
+/*
+-=-=-=-=-=-=-=  CREDITOS A MARCOS VINICIUS viniciusmarcos.01@hotmail.com - (75) 98214-7898  =-=-=-=-=-=-=-
+Trigger criada para adição de departamentos aos RCAs do ERP WINTHOR, criei ela com apenas 1 semana de estudo e fui implementando mais coisas,
+surgiu de uma necessidade qu tínhamos, pois no ERP WINTHOR, sistema que gerencia o banco de dados em questão, tem uma função que é a de
+poder ser adicionado departamentos de produtos para RCAs trabalharem, essa edição dependia de um trabalho manual de adicionar departamento por departamento,
+o que deixava o processo muito repetitivo e demorado, então eu criei essa trigger, que quando o RCA é adicionado no sistema, através da tabela
+PCUSUARI, que é a tabea de RCA, ao preencher um campo na obs do cadastro do RCA, determinaria com quais departamentos ele iria ficar, são
+3 modelos de pastas, OURO, DIAMANTE E MISTA e dependendo do que for preenchido na hora do cadastro, essas pastas já são adicionadas automaticamente, associando
+assim os RCAs aos departamentos na tabela PCUSURDEPSEC, que é a de associação de RCA e departamento.
+*/
+CREATE OR REPLACE TRIGGER AAA_TESTE_TRIGGER_PASTA
+BEFORE INSERT OR UPDATE
+ON PCUSUARI
+REFERENCING NEW AS NEW OLD AS OLD
+FOR EACH ROW
+DECLARE
+   DEPTOS NUMBER(6);
+   --DEPTOS2 NUMBER(6);
+   CURSOR SECD IS SELECT CODSEC FROM PCSECAO WHERE CODSEC IN (301, 302, 303, 1101, 1102, 1103, 1201, 1301, 1302, 1401, 1402, 1403, 2001, 2003, 2501, 2503, 3602, 37001, 510101, 6301, 6401, 7302);
+   --AND CODSEC NOT IN (SELECT CODSEC FROM PCUSURDEPSEC WHERE CODUSUR = :NEW.CODUSUR);
+   CURSOR SECO IS SELECT CODSEC FROM PCSECAO WHERE CODSEC IN (1001, 1003, 1106, 1107, 1108, 1500, 1502, 1601, 1602, 1801, 2501, 2503, 3100, 31001, 31002, 3401, 3402, 37001, 3801, 39001, 402, 421, 422, 4501, 4601, 48001, 510102, 5400, 5801, 5802, /*591,*/ 6401, 65191, 65192, 6561, /*741,*/ 902);
+   --AND CODSEC NOT IN (SELECT CODSEC FROM PCUSURDEPSEC WHERE CODUSUR = :NEW.CODUSUR);
+   DEPCONT NUMBER(6);
+--INSERT
+BEGIN
+   IF INSERTING THEN
+      IF :NEW.OBS2 IN ('OURO', 'DIAMANTE', 'MISTA') THEN
+         IF :NEW.OBS2 = 'DIAMANTE' THEN
+            FOR I IN SECD LOOP
+               SELECT COUNT(CODSEC) INTO DEPCONT FROM PCUSURDEPSEC WHERE CODSEC = I.CODSEC AND CODUSUR = :NEW.CODUSUR;
+               IF DEPCONT < 1 THEN
+                  SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = I.CODSEC;
+                  INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, I.CODSEC);
+               END IF;
+            END LOOP;
+         --END IF;
+         ELSIF :NEW.OBS2 = 'OURO' THEN
+            FOR I IN SECO LOOP
+               SELECT COUNT(CODSEC) INTO DEPCONT FROM PCUSURDEPSEC WHERE CODSEC = I.CODSEC AND CODUSUR = :NEW.CODUSUR;
+               IF DEPCONT < 1 THEN
+                  SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = I.CODSEC;
+                  INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, I.CODSEC);
+               END IF;
+            END LOOP;
+         --END IF;
+         ELSE--IF :NEW.OBS2 = 'MISTA' THEN
+            --ADICIONANDO DIAMANTE DA MISTA
+            FOR I IN SECD LOOP
+               SELECT COUNT(CODSEC) INTO DEPCONT FROM PCUSURDEPSEC WHERE CODSEC = I.CODSEC AND CODUSUR = :NEW.CODUSUR;
+               IF DEPCONT < 1 THEN
+                  SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = I.CODSEC;
+                  INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, I.CODSEC);
+               END IF;
+            END LOOP;
+            --ADICIONANDO OURO DA MISTA
+            FOR I IN SECO LOOP
+               SELECT COUNT(CODSEC) INTO DEPCONT FROM PCUSURDEPSEC WHERE CODSEC = I.CODSEC AND CODUSUR = :NEW.CODUSUR;
+               IF DEPCONT < 1 THEN
+                  SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = I.CODSEC;
+                  INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, I.CODSEC);
+               END IF;
+            END LOOP;
+         END IF;
+      END IF;
+   END IF;
+
+--UPDATE
+   IF UPDATING THEN
+      IF :NEW.OBS2 <> :OLD.OBS2 THEN
+         IF :NEW.OBS2 IN ('OURO', 'DIAMANTE', 'MISTA') THEN
+            --SE ERA OURO/DIAMANTE E FICOU OURO/DIAMANTE
+            IF :OLD.OBS2 IN ('OURO', 'DIAMANTE') THEN
+               IF :NEW.OBS2 IN ('OURO', 'DIAMANTE') THEN
+                  IF :NEW.OBS2 = 'OURO' THEN
+                     FOR I IN SECD LOOP
+                        DELETE FROM PCUSURDEPSEC WHERE CODUSUR = :NEW.CODUSUR AND CODSEC = I.CODSEC;
+                     END LOOP;
+                     FOR A IN SECO LOOP
+                        SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = A.CODSEC;
+                        INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, A.CODSEC);
+                     END LOOP;
+                  ELSE
+                     FOR I IN SECO LOOP
+                        DELETE FROM PCUSURDEPSEC WHERE CODUSUR = :NEW.CODUSUR AND CODSEC = I.CODSEC;
+                     END LOOP;
+                     FOR A IN SECD LOOP
+                        SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = A.CODSEC;
+                        INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, A.CODSEC);
+                     END LOOP;
+                  END IF;
+               END IF;
+            END IF;
+            --SE ERA OURO/DIAMANTE E FICOU MISTA
+            IF :OLD.OBS2 IN ('OURO', 'DIAMANTE') AND :NEW.OBS2 = 'MISTA' THEN
+               --ADD DIAMANTE
+               FOR I IN SECD LOOP
+                  SELECT COUNT(CODSEC) INTO DEPCONT FROM PCUSURDEPSEC WHERE CODSEC = I.CODSEC AND CODUSUR = :NEW.CODUSUR;
+                  IF DEPCONT < 1 THEN
+                     SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = I.CODSEC;
+                     INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, I.CODSEC);
+                  END IF;
+               END LOOP;
+               --ADD OURO
+               FOR I IN SECO LOOP
+                  SELECT COUNT(CODSEC) INTO DEPCONT FROM PCUSURDEPSEC WHERE CODSEC = I.CODSEC AND CODUSUR = :NEW.CODUSUR;
+                  IF DEPCONT < 1 THEN
+                     SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = I.CODSEC;
+                     INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, I.CODSEC);
+                  END IF;
+               END LOOP;
+            --SE ERA MISTA E FICOU OURO/DIAMANTE
+            ELSIF :OLD.OBS2 = 'MISTA' THEN
+               IF :NEW.OBS2 = 'OURO' THEN
+                  --REMOVER DIAMANTE E ADD OURO
+                  FOR I IN SECD LOOP
+                     DELETE FROM PCUSURDEPSEC WHERE CODUSUR = :NEW.CODUSUR AND CODSEC = I.CODSEC;
+                  END LOOP;
+                  FOR I IN SECO LOOP
+                  SELECT COUNT(CODSEC) INTO DEPCONT FROM PCUSURDEPSEC WHERE CODSEC = I.CODSEC AND CODUSUR = :NEW.CODUSUR;
+                     IF DEPCONT < 1 THEN
+                        SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = I.CODSEC;
+                        INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, I.CODSEC);
+                     END IF;
+                  END LOOP;
+               ELSIF :NEW.OBS2 = 'DIAMANTE' THEN
+               --REMOVER OURO E ADD DIAMANTE
+                  FOR I IN SECO LOOP
+                     DELETE FROM PCUSURDEPSEC WHERE CODUSUR = :NEW.CODUSUR AND CODSEC = I.CODSEC;
+                  END LOOP;
+                  FOR I IN SECD LOOP
+                  SELECT COUNT(CODSEC) INTO DEPCONT FROM PCUSURDEPSEC WHERE CODSEC = I.CODSEC AND CODUSUR = :NEW.CODUSUR;
+                     IF DEPCONT < 1 THEN
+                        SELECT CODEPTO INTO DEPTOS FROM PCSECAO WHERE CODSEC = I.CODSEC;
+                        INSERT INTO PCUSURDEPSEC (CODUSUR, CODEPTO, CODSEC) VALUES (:NEW.CODUSUR, DEPTOS, I.CODSEC);
+                     END IF;
+                  END LOOP;
+               END IF;
+            END IF;
+         END IF;
+      END IF;
+   END IF;
+END;
